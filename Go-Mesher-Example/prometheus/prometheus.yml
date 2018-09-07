@@ -1,0 +1,15 @@
+global:
+  scrape_interval:     5s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: mesherserver
+    metrics_path: '/v1/mesher/metrics'
+    static_configs:
+      - targets: ['MesherProvider:30102']
+  - job_name: mesherclient
+    metrics_path: '/v1/mesher/metrics'
+    static_configs:
+      - targets: ['MesherConsumer:30102']
+
+

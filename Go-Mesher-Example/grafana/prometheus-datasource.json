@@ -1,0 +1,6 @@
+{
+  "name": "mesher-demo",
+  "type": "prometheus",
+  "url": "http://MyPrometheus:9090",
+  "access": "proxy"
+}

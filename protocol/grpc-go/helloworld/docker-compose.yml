@@ -1,0 +1,36 @@
+version: '2'
+services:
+  ServiceCenter:
+    image: servicecomb/service-center
+    ports:
+      - 30100:30100
+  MesherProvider:
+    image: gochassis/mesher
+    environment:
+      - CSE_REGISTRY_ADDR=http://ServiceCenter:30100 #https://cse.cn-north-1.myhwclouds.com:443
+      - SERVICE_NAME=Server
+      - VERSION=0.0.1
+      - APP_ID=default
+  MesherConsumer:
+    image: gochassis/mesher
+    environment:
+      - CSE_REGISTRY_ADDR=http://ServiceCenter:30100 #https://cse.cn-north-1.myhwclouds.com:443
+      - SERVICE_NAME=Client
+      - VERSION=0.0.1
+      - APP_ID=default
+    links:
+      - ServiceCenter
+    ports:
+      - 9000:3000
+  Server:
+    build:
+      context: ./greeter_server
+      dockerfile: Dockerfile
+    image: server-grpc
+    network_mode: "service:MesherProvider"
+  Client:
+    build:
+      context: ./greeter_client
+      dockerfile: Dockerfile
+    image: client-grpc
+    network_mode: "service:MesherConsumer"

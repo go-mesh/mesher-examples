@@ -1,0 +1,629 @@
+tosca_definitions_version: fusionstage_tosca_version_2_1
+
+inputs:
+  image-mesher:
+    default: "swr.cn-north-1.myhuaweicloud.com/hwcse/at-mesher:latest"
+  image-provider-nosdk:
+    default: "swr.cn-north-1.myhuaweicloud.com/hwcse/gosdk-server-withoutchassis:latest"
+  image-consumer-nosdk:
+    default: "swr.cn-north-1.myhuaweicloud.com/hwcse/go-consumer-withoutsdk:latest"
+  appname-provider-nosdk:
+    default: "mesher-provider-nosdk"
+  appname-consumer-go:
+    default: "mesher-consumer-go"
+  cse_reg_addr:
+    default: "https://cse.cn-north-1.myhwclouds.com:443"
+  cse_center_addr:
+    default: "https://cse.cn-north-1.myhwclouds.com:443"
+  mesher_admin_ip:
+    default: "0.0.0.0:30102"
+  version:
+    default: "0.0.1"
+  outcome:
+    default: "router,ratelimiter-consumer,bizkeeper-consumer,loadbalance,fault-inject,transport"
+  income:
+    default: "ratelimiter-provider,bizkeeper-provider,local-selection,x-forward,transport"
+  refresh_interval:
+    default: "1"
+  servicenameforadmin:
+    default: "admin"
+  servicenameforServer:
+    default: "Server"
+  mesher_ip:
+    default: "0.0.0.0:30101"
+  application:
+    default: "default"
+  specificaddr:
+    default: "127.0.0.1:9090"
+  tls_enable:
+    default: true
+
+node_templates:
+  cse-localtime-volume:
+    type: fusionstage.nodes.LocalVolume
+    properties:
+      name: localtime
+      hostPath: /etc/localtime
+
+  cse-resolv-volume:
+    type: fusionstage.nodes.LocalVolume
+    properties:
+      name: resolv
+      hostPath: /etc/resolv.conf
+
+  configmapvolumeatmesher:
+    type: fusionstage.nodes.ConfigMapVolume
+    properties:
+      name: mesheratconfig
+      configMapSpec:
+        - name: auth.yaml
+          value: |
+            cse.credentials.accessKey:
+            cse.credentials.secretKey:
+        - name: mesher.yaml
+          value: |
+            # Router rules and fault injection rules are moved to router.yaml
+            plugin:
+              destinationResolver: host # how to turn host to destination name. default to service name，
+            admin: #admin API
+              serverUri : 127.0.0.1:30102 # addr on listening
+              goRuntimeMetrics : true # enable metrics
+            # enable pprof to profile mesher runtime
+            pprof:
+              enable: false
+        - name: chassis.yaml
+          value: |
+            ---
+            cse:
+              service:
+                registry:
+                  type: servicecenter
+                  scope: full
+                  address: https://cse.cn-north-1.myhwclouds.com:443
+                  #enableSSL: false
+                  #register: manual
+                  refeshInterval : 30s
+                  watch: true
+                  tenant: default
+              config:
+                client:
+                  serverUri: https://cse.cn-north-1.myhwclouds.com:443
+                  refreshMode: 1
+                  refreshInterval: 1
+              protocols:
+                http:
+                  listenAddress: 127.0.0.1:30101
+              handler:
+                chain:
+                  Consumer:
+                    outgoing: router,ratelimiter-consumer,bizkeeper-consumer,loadbalance,fault-inject,transport
+        - name: circuit_breaker.yaml
+          value: |
+            ---
+            cse:
+              isolation:
+                Consumer:
+                  timeout:
+                    enabled: false
+                  timeoutInMilliseconds: 1000
+                  maxConcurrentRequests: 100
+                  admin:
+                    timeout:
+                      enabled: true
+                    timeoutInMilliseconds: 1000
+                    maxConcurrentRequests: 100
+              circuitBreaker:
+                Consumer:
+                  enabled: false
+                  forceOpen: false
+                  forceClosed: false
+                  sleepWindowInMilliseconds: 10000
+                  requestVolumeThreshold: 20
+                  errorThresholdPercentage: 10
+                  admin:
+                    enabled: true
+                    forceOpen: false
+                    forceClosed: false
+                    sleepWindowInMilliseconds: 10000
+                    requestVolumeThreshold: 20
+                    errorThresholdPercentage: 50
+              fallback:
+                Consumer:
+                  enabled: true
+                  maxConcurrentRequests: 20
+              fallbackpolicy:
+                Consumer:
+                  policy: throwexception
+        - name: microservice.yaml
+          value: |
+            ---
+            APPLICATION_ID: default #optional
+            service_description:
+              name: admin
+              version: 0.0.1 #optional
+              environment:
+              properties:
+                allowCrossApp: true
+        - name: load_balancing.yaml
+          value: |
+            ---
+            cse:
+              loadbalance:
+                Server:
+                  strategy:
+                    name: Random
+                strategy:
+                  name: WeightedResponse
+                  sessionTimeoutInSeconds: 30
+                retryEnabled: false
+                retryOnNext: 2
+                retryOnSame: 3
+                serverListFilters: zoneaware
+                backoff:
+                  kind: constant
+                  minMs: 200
+                  maxMs: 400
+        - name: monitoring.yaml
+          value: |
+            ---
+            tracing:
+              collectorType: zipkin
+              collectorTarget: http://localhost:9411/api/v1/spans
+        - name: lager.yaml
+          value: |
+            ---
+            logger_level: DEBUG
+            logger_file: log/chassis.log
+            log_format_text: true
+            rollingPolicy: size
+            log_rotate_date: 1
+            log_rotate_size: 10
+            log_backup_count: 7
+        - name: rate_limiting.yaml
+          value: |
+            ---
+            flowcontrol:
+              Consumer:
+                qps:
+                  enabled: true
+                  limit:
+                    Server.HelloServer: 10
+        - name: tls.yaml
+          value: |
+            ssl:
+              configcenter.Consumer.cipherPlugin: default
+              configcenter.Consumer.verifyPeer: false
+              configcenter.Consumer.cipherSuits: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+              configcenter.Consumer.protocol: TLSv1.2
+              configcenter.Consumer.caFile:
+              configcenter.Consumer.certFile:
+              configcenter.Consumer.keyFile:
+              configcenter.Consumer.certPwdFile:
+
+              registrator.Consumer.cipherPlugin: default
+              registrator.Consumer.verifyPeer: false
+              registrator.Consumer.cipherSuits: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+              registrator.Consumer.protocol: TLSv1.2
+              registrator.Consumer.caFile:
+              registrator.Consumer.certFile:
+              registrator.Consumer.keyFile:
+              registrator.Consumer.certPwdFile:
+
+              serviceDiscovery.Consumer.cipherPlugin: default
+              serviceDiscovery.Consumer.verifyPeer: false
+              serviceDiscovery.Consumer.cipherSuits: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+              serviceDiscovery.Consumer.protocol: TLSv1.2
+              serviceDiscovery.Consumer.caFile:
+              serviceDiscovery.Consumer.certFile:
+              serviceDiscovery.Consumer.keyFile:
+              serviceDiscovery.Consumer.certPwdFile:
+
+              contractDiscovery.Consumer.cipherPlugin: default
+              contractDiscovery.Consumer.verifyPeer: false
+              contractDiscovery.Consumer.cipherSuits: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+              contractDiscovery.Consumer.protocol: TLSv1.2
+              contractDiscovery.Consumer.caFile:
+              contractDiscovery.Consumer.certFile:
+              contractDiscovery.Consumer.keyFile:
+              contractDiscovery.Consumer.certPwdFile:
+
+              Server.rest.Consumer.cipherPlugin: default
+              Server.rest.Consumer.verifyPeer: false
+              Server.rest.Consumer.cipherSuits: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+              Server.rest.Consumer.protocol: TLSv1.2
+        - name: router.yaml
+          value: |
+            routeRule:
+              Server:
+                - precedence: 1
+                  route:
+                  - tags:
+                      version: 0.0.1 
+                    weight: 100
+            #      - tags:
+            #          version: 1.2
+            #          weight: 20 #全重 20%到这里
+      createNew: true
+
+
+  configmapvolumecert:
+    type: fusionstage.nodes.ConfigMapVolume
+    properties:
+      name: meshercert
+      configMapSpec:
+        - name: kubecfg.crt
+          value: |
+            -----BEGIN CERTIFICATE-----
+            MIICdjCCAd+gAwIBAgIJAIpDJsMhYk2iMA0GCSqGSIb3DQEBBQUAMFQxCzAJBgNV
+            BAYTAmluMQwwCgYDVQQIDANrYXIxDDAKBgNVBAcMA2JscjEPMA0GA1UECgwGaHVh
+            d2VpMQswCQYDVQQLDAJidTELMAkGA1UEAwwCb28wHhcNMTgwNjA1MDkyMjUwWhcN
+            MTkwNjA1MDkyMjUwWjBUMQswCQYDVQQGEwJpbjEMMAoGA1UECAwDa2FyMQwwCgYD
+            VQQHDANibHIxDzANBgNVBAoMBmh1YXdlaTELMAkGA1UECwwCYnUxCzAJBgNVBAMM
+            Am9vMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCl6nXrleWlljP1vfwv7L/o
+            SywejSZ1EY6PH+CUh9GJaidmScXJ4un0Gx21UEqXFfpxwybudcUnIOuBCddQ1t6g
+            EH0uDnfOuveFXY+XrlvGpDkwbQZc6bqTSoIgeUwEV8ccvDko7Itei4UPK+hzIzL4
+            IHydOc2zbCPczfBlQ+7E2wIDAQABo1AwTjAdBgNVHQ4EFgQUO1FL6txcDM2gZbAu
+            rQq3xV4HaMUwHwYDVR0jBBgwFoAUO1FL6txcDM2gZbAurQq3xV4HaMUwDAYDVR0T
+            BAUwAwEB/zANBgkqhkiG9w0BAQUFAAOBgQCN67ObJ/54KJ4It4Jl4AX61529fblm
+            LABj8DIVLCMhMeXzoGQhbIVn+Z03oxNWVt/IUur7EP5y6i9wHO+llu7aSuXnbvoF
+            awPwi5v28TN5QVuRittMmjGzcxv4VfHRyXX/AGBrQWrBtIlJs/wY2dyq0dk2Eawi
+            dqrVlnVCM032BQ==
+            -----END CERTIFICATE-----
+        - name: kubecfg.key
+          value: |
+            -----BEGIN RSA PRIVATE KEY-----
+            MIICXAIBAAKBgQCl6nXrleWlljP1vfwv7L/oSywejSZ1EY6PH+CUh9GJaidmScXJ
+            4un0Gx21UEqXFfpxwybudcUnIOuBCddQ1t6gEH0uDnfOuveFXY+XrlvGpDkwbQZc
+            6bqTSoIgeUwEV8ccvDko7Itei4UPK+hzIzL4IHydOc2zbCPczfBlQ+7E2wIDAQAB
+            AoGAVKXWG6eSTnTfdZTEQT8sebtAeyXQZRHcBbFhxuW0RcNe7pTc0C9w5RWghoy8
+            QXD5IWlLR4XWXCwzetYmgBvf4D9C4dSUWcPCXTVJjtA3zXbrgR8pzWb19RacYe5f
+            KrpkR66V3TAzNdOP0FLLWOKZjXDb6szcTO8QAXxHvttzG4ECQQDcgZ9zhn8QDqIH
+            8w9oY/wk/2FFANKTDesB/7XJCtpa4Oft472OLAszXdGQoFfW3SknN87vrsiauH8w
+            RCnPb1jRAkEAwJ9VtPUuxlluEkZpgvRJa2dRkhYqcZlsjw9KayeVSc7SsKVDJC43
+            k4Yer2+V6JGW6QbaSfGjhr8vF+Pya0Ot6wJAHmR7Xsf18Xei26ejwwas9UiB1qnz
+            XDN55c+h9bDaQdZoAUD3moX1kUHoJaAEG2hmSLKHgj+8BJ9TYIq0nJPDUQJBAIn1
+            FFNojzmsb3NTTtplz/fGpdt1WKzH78J+dxRL41ZbdPbjRjUxjMhx9KQ9zSYmr+jx
+            6YGwOSiW4UnBDqzYakUCQCZdCBhhqPgsX655TbChbtdcLND/tuMinvkx6FdBVqs1
+            5MlKp4h4SgUd3ChPq3XesYschc1+ZnYf+MHxz550cp4=
+            -----END RSA PRIVATE KEY-----
+      createNew: true
+
+
+  configmapvolumeatmesherpro:
+    type: fusionstage.nodes.ConfigMapVolume
+    properties:
+      name: mesheratconfigpro
+      configMapSpec:
+        - name: auth.yaml
+          value: |
+            cse.credentials.accessKey: UINZOXGKR7GQXBUVZGN0
+            cse.credentials.secretKey: ISVRNd2n6nNDpV8HbMeIOW43BZ1rx9PrvE9P8If7
+        - name: mesher.yaml
+          value: |
+            # Router rules and fault injection rules are moved to router.yaml
+            plugin:
+              destinationResolver: host # how to turn host to destination name. default to service name，
+            admin: #admin API
+              serverUri : 127.0.0.1:30102 # addr on listening
+              goRuntimeMetrics : true # enable metrics
+            # enable pprof to profile mesher runtime
+            pprof:
+              enable: false
+        - name: chassis.yaml
+          value: |
+            ---
+            cse:
+              service:
+                registry:
+                  type: servicecenter
+                  scope: full
+                  address: https://cse.cn-north-1.myhwclouds.com:443
+                  #enableSSL: false
+                  #register: manual
+                  refeshInterval : 30s
+                  watch: true
+                  tenant: default
+              config:
+                client:
+                  serverUri: https://cse.cn-north-1.myhwclouds.com:443
+                  refreshMode: 1
+                  refreshInterval: 1
+              protocols:
+                http:
+                  listenAddress: 127.0.0.1:30101
+              handler:
+                chain:
+                  Provider:
+                    incoming: ratelimiter-provider,bizkeeper-provider,local-selection,x-forward,transport
+        - name: circuit_breaker.yaml
+          value: |
+            ---
+            cse:
+              isolation:
+                Consumer:
+                  timeout:
+                    enabled: false
+                  timeoutInMilliseconds: 1000
+                  maxConcurrentRequests: 100
+                  Server:
+                    timeout:
+                      enabled: true
+                    timeoutInMilliseconds: 1000
+                    maxConcurrentRequests: 100
+              circuitBreaker:
+                Consumer:
+                  enabled: false
+                  forceOpen: false
+                  forceClosed: false
+                  sleepWindowInMilliseconds: 10000
+                  requestVolumeThreshold: 20
+                  errorThresholdPercentage: 10
+                  Server:
+                    enabled: true
+                    forceOpen: false
+                    forceClosed: false
+                    sleepWindowInMilliseconds: 10000
+                    requestVolumeThreshold: 20
+                    errorThresholdPercentage: 50
+              fallback:
+                Consumer:
+                  enabled: true
+                  maxConcurrentRequests: 20
+              fallbackpolicy:
+                Consumer:
+                  policy: throwexception
+        - name: microservice.yaml
+          value: |
+            ---
+            APPLICATION_ID: default #optional
+            service_description:
+              name: Server
+              version: 0.0.1 #optional
+              environment:
+              properties:
+                allowCrossApp: true
+        - name: monitoring.yaml
+          value: |
+            ---
+            tracing:
+              collectorType: zipkin
+              collectorTarget: http://localhost:9411/api/v1/spans
+        - name: lager.yaml
+          value: |
+            ---
+            logger_level: DEBUG
+            logger_file: log/chassis.log
+            log_format_text: true
+            rollingPolicy: size
+            log_rotate_date: 1
+            log_rotate_size: 10
+            log_backup_count: 7
+        - name: rate_limiting.yaml
+          value: |
+            ---
+            cse:
+              flowcontrol:
+                Provider:
+                  qps:
+                    enabled: false
+                    global:
+                      limit: 1
+                    limit:
+                      admin: 1
+        - name: tls.yaml
+          value: |
+            ssl:
+              configcenter.Consumer.cipherPlugin: default
+              configcenter.Consumer.verifyPeer: false
+              configcenter.Consumer.cipherSuits: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+              configcenter.Consumer.protocol: TLSv1.2
+              configcenter.Consumer.caFile:
+              configcenter.Consumer.certFile:
+              configcenter.Consumer.keyFile:
+              configcenter.Consumer.certPwdFile:
+
+              registrator.Consumer.cipherPlugin: default
+              registrator.Consumer.verifyPeer: false
+              registrator.Consumer.cipherSuits: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+              registrator.Consumer.protocol: TLSv1.2
+              registrator.Consumer.caFile:
+              registrator.Consumer.certFile:
+              registrator.Consumer.keyFile:
+              registrator.Consumer.certPwdFile:
+
+              serviceDiscovery.Consumer.cipherPlugin: default
+              serviceDiscovery.Consumer.verifyPeer: false
+              serviceDiscovery.Consumer.cipherSuits: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+              serviceDiscovery.Consumer.protocol: TLSv1.2
+              serviceDiscovery.Consumer.caFile:
+              serviceDiscovery.Consumer.certFile:
+              serviceDiscovery.Consumer.keyFile:
+              serviceDiscovery.Consumer.certPwdFile:
+
+              contractDiscovery.Consumer.cipherPlugin: default
+              contractDiscovery.Consumer.verifyPeer: false
+              contractDiscovery.Consumer.cipherSuits: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+              contractDiscovery.Consumer.protocol: TLSv1.2
+              contractDiscovery.Consumer.caFile:
+              contractDiscovery.Consumer.certFile:
+              contractDiscovery.Consumer.keyFile:
+              contractDiscovery.Consumer.certPwdFile:
+
+              Server.rest.Provider.cipherPlugin: default
+              Server.rest.Provider.verifyPeer: false
+              Server.rest.Provider.cipherSuits: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+              Server.rest.Provider.protocol: TLSv1.2
+              Server.rest.Provider.caFile:
+              Server.rest.Provider.certFile: /etc/ssl/cert/Server/Server/kubecfg.crt # Here Server before kubecfg.crt and kubecfg.key is the microservice name
+              Server.rest.Provider.keyFile: /etc/ssl/cert/Server/Server/kubecfg.key
+              Server.rest.Provider.certPwdFile:
+      createNew: true
+  
+  original-mesher-group:
+    type: fusionstage.nodes.AppGroup
+    requirements:
+      - member:
+          node: mesher-provider-nosdk-app
+          relationship: fusionstage.relationships.ConsistsOf
+      - member:
+          node: mesher-consumer-go-app
+          relationship: fusionstage.relationships.ConsistsOf
+
+  #mesher-provider-nosdk
+  mesher-provider-nosdk-app:
+    type: fusionstage.nodes.StatelessApplication
+    properties:
+      type: container
+      name: { get_input: appname-provider-nosdk }
+    requirements:
+      - package:
+          node: mesher-provider-nosdk
+          relationship: fusionstage.relationships.PackageConsistsOf
+      - package:
+          node: provider-nosdk-mesher
+          relationship: fusionstage.relationships.PackageConsistsOf
+      - volume:
+          node: cse-localtime-volume
+          relationship: fusionstage.relationships.AttachesTo
+      - volume:
+          node: cse-resolv-volume
+          relationship: fusionstage.relationships.AttachesTo
+      - volume:
+          node: configmapvolumeatmesherpro
+          relationship: fusionstage.relationships.AttachesTo
+      - volume:
+          node: configmapvolumecert
+          relationship: fusionstage.relationships.AttachesTo
+  mesher-provider-nosdk:
+    type: fusionstage.nodes.ContainerComponent
+    properties:
+      package:
+        image: { get_input: image-provider-nosdk }
+        serviceSpec:
+          type: NodePort
+          ports:
+            - port: 9090
+              targetPort: 9090
+        volumes:
+          - name: localtime
+            mountPath: /etc/localtime
+            readOnly: true
+
+  #provider-nosdk-mesher
+  provider-nosdk-mesher:
+    type: fusionstage.nodes.ContainerComponent
+    properties:
+      package:
+        image: { get_input: image-mesher }
+        env:
+          - name: "CSE_REGISTRY_ADDR"
+            value: { get_input: cse_reg_addr }
+          - name: "CSE_CONFIG_CENTER_ADDR"
+            value: { get_input: cse_center_addr }
+          - name: "SERVICE_NAME"
+            value: { get_input: servicenameforServer }
+          - name: "VERSION"
+            value: { get_input: version }
+          - name: "SPECIFIC_ADDR"
+            value: { get_input: specificaddr }
+          - name: "APP_ID"
+            value: { get_input: application }
+          - name: "REFRESH_INTERVAL"
+            value: { get_input: refresh_interval }
+          - name: "TLS_ENABLE"
+            value: { get_input: tls_enable }
+        volumes:
+          - name: localtime
+            mountPath: /etc/localtime
+            readOnly: true
+          - name: mesheratconfigpro
+            mountPath: /tmp/
+            readOnly: true
+          - name: meshercert
+            mountPath: /etc/ssl/meshercert/
+            readOnly: true
+          - name: meshercert
+            mountPath: /etc/ssl/cert/Server/Server/ # Here Server is the microservice name
+            readOnly: true
+
+  #mesher-consumer-go
+  mesher-consumer-go-app:
+    type: fusionstage.nodes.StatelessApplication
+    properties:
+      type: container
+      name: { get_input: appname-consumer-go }
+    requirements:
+      - package:
+          node: mesher-consumer-go
+          relationship: fusionstage.relationships.PackageConsistsOf
+      - package:
+          node: consumer-go-mesher
+          relationship: fusionstage.relationships.PackageConsistsOf
+      - volume:
+          node: cse-localtime-volume
+          relationship: fusionstage.relationships.AttachesTo
+      - volume:
+          node: cse-resolv-volume
+          relationship: fusionstage.relationships.AttachesTo
+      - volume:
+          node: configmapvolumeatmesher
+          relationship: fusionstage.relationships.AttachesTo
+      - volume:
+          node: configmapvolumecert
+          relationship: fusionstage.relationships.AttachesTo
+  mesher-consumer-go:
+    type: fusionstage.nodes.ContainerComponent
+    properties:
+      package:
+        image: { get_input: image-consumer-nosdk }
+        env:
+          - name: "MESHER_ADMIN_IP"
+            value: { get_input: mesher_admin_ip }
+          - name: "CSE_CONFIG_CENTER_ADDR"
+            value: { get_input: cse_center_addr }
+          - name: "http_proxy"
+            value: { get_input: mesher_ip }
+          - name: "no_proxy"
+            value: { get_input: mesher_admin_ip }
+        serviceSpec:
+          type: NodePort
+          ports:
+            - name: port1
+              port: 9080
+              nodePort: 30010
+              targetPort: 9080
+        volumes:
+          - name: localtime
+            mountPath: /etc/localtime
+            readOnly: true
+
+  #consumer-go-mesher
+  consumer-go-mesher:
+    type: fusionstage.nodes.ContainerComponent
+    properties:
+      package:
+        image: { get_input: image-mesher }
+        env:
+          - name: "CSE_REGISTRY_ADDR"
+            value: { get_input: cse_reg_addr }
+          - name: "CSE_CONFIG_CENTER_ADDR"
+            value: { get_input: cse_center_addr }
+          - name: "SERVICE_NAME"
+            value: { get_input: servicenameforadmin }
+          - name: "VERSION"
+            value: { get_input: version }
+          - name: "APP_ID"
+            value: { get_input: application }
+          - name: "REFRESH_INTERVAL"
+            value: { get_input: refresh_interval }
+        volumes:
+          - name: localtime
+            mountPath: /etc/localtime
+            readOnly: true
+          - name: mesheratconfig
+            mountPath: /tmp/
+            readOnly: true
+          - name: meshercert
+            mountPath: /etc/ssl/meshercert/
+            readOnly: true
+

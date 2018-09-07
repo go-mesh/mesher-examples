@@ -1,0 +1,72 @@
+version: '2'
+services:
+  ServiceCenter:
+    image: servicecomb/service-center
+    ports:
+      - 30100:30100
+  MesherProvider:
+    image: gochassis/mesher
+    environment:
+      - CSE_REGISTRY_ADDR=http://ServiceCenter:30100 #https://cse.cn-north-1.myhwclouds.com:443
+      - SERVICE_NAME=Server
+      - VERSION=0.0.1
+      - APP_ID=default
+      - CSE_MONITOR_SERVER_ADDR=
+    links:
+      - ServiceCenter
+      - MyZipkin
+  MesherConsumer:
+    image: gochassis/mesher
+    environment:
+      - CSE_REGISTRY_ADDR=http://ServiceCenter:30100 #https://cse.cn-north-1.myhwclouds.com:443
+      - SERVICE_NAME=Client
+      - VERSION=0.0.1
+      - APP_ID=default
+      - CSE_MONITOR_SERVER_ADDR=
+    links:
+      - ServiceCenter
+      - MyZipkin
+    ports:
+      - 9000:3000
+  Server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: server:latest
+    network_mode: "service:MesherProvider"
+  Client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    image: client:latest
+    environment:
+      - http_proxy=127.0.0.1:30101
+    network_mode: "service:MesherConsumer"
+  MyPrometheus:
+    build: ./prometheus
+    image: my-prometheus:latest
+    ports:
+      - 9090:9090
+    links:
+      - MesherProvider
+      - MesherConsumer
+  MyGrafana:
+    image: grafana/grafana
+    ports:
+      - 3000:3000
+    links:
+      - MyPrometheus
+  MyZipkin:
+    image: openzipkin/zipkin
+    ports:
+      - 9411:9411
+  Importer:
+    image: giantswarm/tiny-tools
+    depends_on:
+      - MyGrafana
+    links:
+      - MyGrafana
+    entrypoint: /bin/sh import.sh
+    working_dir: /opt/grafana-import-dashboards
+    volumes:
+      - ./grafana:/opt/grafana-import-dashboards
