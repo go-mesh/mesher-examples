@@ -1,0 +1,20 @@
+APPLICATION_ID: start.servicecomb.io
+service_description:
+  name: HelloServiceComb
+  version: 0.0.1
+servicecomb:
+  flowcontrol:
+    Provider:
+      qps:
+        limit:
+          gateway: 1000
+  handler:
+    chain:
+      Provider:
+        default: qps-flowcontrol-provider,tracing-provider
+  rest:
+    address: 0.0.0.0:9080
+  service:
+    registry:
+      address: http://127.0.0.1:30100
+      autodiscovery: false
