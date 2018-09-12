@@ -1,0 +1,76 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hello-provider
+  labels:
+    app: hello
+    name: provider
+spec:
+  containers:
+  - name: hello-provider
+    image: "gomesh/helloprovider:latest"
+    imagePullPolicy: Always
+    env:
+    - name: REGISTRY
+      value: "http://service-center.servicecomb:30100"
+    ports:
+      - containerPort: 9080
+
+---
+apiVersion: v1
+kind: Service
+apiVersion: v1
+metadata:
+  name: hello-provider
+spec:
+  selector:
+    app: hello
+    name: provider
+  ports:
+  - protocol: TCP
+    name: http
+    port: 9080
+    targetPort: 9080
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hello-consumer
+  labels:
+    app: hello
+    name: consumer
+  annotations:
+    sidecar.mesher.io/inject: "yes"
+    sidecar.mesher.io/discoveryType: "sc"
+spec:
+  containers:
+  - name: hello-consumer
+    image: "gomesh/helloconsumer:latest"
+    imagePullPolicy: Always
+    env:
+    - name: TARGET
+      value: http://hello-provider/
+    - name: http_proxy
+      value: http://127.0.0.1:30101/
+    ports:
+      - containerPort: 80
+
+---
+apiVersion: v1
+kind: Service
+apiVersion: v1
+metadata:
+  name: hello-consumer
+spec:
+  selector:
+    app: hello
+    name: consumer
+  ports:
+  - protocol: TCP
+    name: http
+    port: 80
+    nodePort: 30180
+    targetPort: 80
+  type: NodePort
