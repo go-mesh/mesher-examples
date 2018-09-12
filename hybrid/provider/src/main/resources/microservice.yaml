@@ -1,6 +1,6 @@
 APPLICATION_ID: start.servicecomb.io
 service_description:
-  name: HelloServiceComb
+  name: hello-provider
   version: 0.0.1
 servicecomb:
   flowcontrol:
