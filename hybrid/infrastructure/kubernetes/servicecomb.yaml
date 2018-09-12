@@ -258,52 +258,6 @@ data:
 ---
 # Source: service-center/templates/rbac.yaml
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: service-center
-  labels:
-    app: service-center
-    chart: service-center-0.1.0
-    release: servicecomb
-    heritage: Tiller
-rules:
-- apiGroups: ["apiextensions.k8s.io"]
-  resources: ["customresourcedefinitions"]
-  verbs: ["*"]
-- apiGroups: ["extensions"]
-  resources: ["thirdpartyresources", "thirdpartyresources.extensions", "ingresses", "ingresses/status"]
-  verbs: ["*"]
-- apiGroups: [""]
-  resources: ["configmaps"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: [""]
-  resources: ["endpoints", "pods", "services"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: [""]
-  resources: ["namespaces", "nodes", "secrets"]
-  verbs: ["get", "list", "watch"]
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: service-center
-  labels:
-    app: service-center
-    chart: service-center-0.1.0
-    release: servicecomb
-    heritage: Tiller
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: service-center
-subjects:
-  - kind: ServiceAccount
-    name: service-center
-    namespace: servicecomb
-
----
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -314,7 +268,7 @@ metadata:
     chart: service-center-0.1.0
     release: servicecomb
     heritage: Tiller
-  namespace: servicecomb
+
 
 ---
 # Source: service-center/templates/service.yaml
@@ -462,8 +416,9 @@ spec:
               path: /
               port: 30103
           resources:
-            null
+            {}
 
 
 ---
 # Source: service-center/templates/ingress.yaml
+

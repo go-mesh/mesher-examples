@@ -17,6 +17,13 @@ cd hybrid/infrastructure/kubernetes
 kubectl apply -f example.yaml
 ```
 
+## Confirm the installation is OK
+
+```bash
+# curl http://{consumer}:30180/consumer.php
+"Hello World!"
+```
+
 ## Clean up
 
 ```bash
