@@ -1,0 +1,1 @@
+docker run -it -p hostPort:containerPort TensorFlowCPUImage

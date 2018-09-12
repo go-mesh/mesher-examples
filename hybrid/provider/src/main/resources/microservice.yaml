@@ -1,4 +1,4 @@
-APPLICATION_ID: start.servicecomb.io
+APPLICATION_ID: default
 service_description:
   name: hello-provider
   version: 0.0.1
