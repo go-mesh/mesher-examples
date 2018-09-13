@@ -51,7 +51,7 @@ spec:
     imagePullPolicy: Always
     env:
     - name: TARGET
-      value: http://hello-provider/
+      value: hello-provider
     - name: http_proxy
       value: http://127.0.0.1:30101/
     ports:

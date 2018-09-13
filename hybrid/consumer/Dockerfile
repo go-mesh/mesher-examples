@@ -1,5 +1,5 @@
 FROM php:5.6-apache
-COPY ./client.php  /var/www/html
+COPY ./consumer.php  /var/www/html
 
 ENV Item pen
 
