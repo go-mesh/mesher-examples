@@ -50,12 +50,15 @@ data:
           watch: false # set if you want to watch instance change event
       config:
         client:
-          type: config_center			# config_center/apollo
-          #serverUri: http://127.0.0.1:30103
+          type: apollo			# config_center/apollo
+          serverUri: http://apollo.servicecomb:8080
           refreshMode: 1
           refreshInterval: 30
-          tenantName:  default
           autodiscovery: false
+          serviceName: hybrid-example
+          env: DEV
+          cluster: default
+          namespace: application
 
 ---
 # Source: servicecomb/templates/serviceaccount.yaml
