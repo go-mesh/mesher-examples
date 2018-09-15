@@ -37,6 +37,7 @@ metadata:
   name: apollo
   namespace: servicecomb
 spec:
+  type: NodePort
   selector:
     app: apollo-configcenter
   ports:
