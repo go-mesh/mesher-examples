@@ -3,19 +3,14 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: hello-provider
-  labels:
-    app: hello
-    name: provider
 spec:
   selector:
     matchLabels:
-      app: hello
-      name: provider
+      app: hello-provider
   template:
     metadata:
       labels:
-        app: hello
-        name: provider
+        app: hello-provider
     spec:
       containers:
       - name: hello-provider
@@ -35,8 +30,7 @@ metadata:
   name: hello-provider
 spec:
   selector:
-    app: hello
-    name: provider
+    app: hello-provider
   ports:
   - protocol: TCP
     name: http
@@ -48,22 +42,17 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: hello-consumer
-  labels:
-    app: hello
-    name: consumer
 spec:
   selector:
     matchLabels:
-      app: hello
-      name: consumer
+      app: hello-consumer
   template:
     metadata:
       annotations:
         sidecar.mesher.io/inject: "yes"
         sidecar.mesher.io/discoveryType: "sc"
       labels:
-        app: hello
-        name: consumer
+        app: hello-consumer
     spec:
       containers:
         - name: hello-consumer
@@ -85,8 +74,7 @@ metadata:
   name: hello-consumer
 spec:
   selector:
-    app: hello
-    name: consumer
+    app: hello-consumer
   ports:
   - protocol: TCP
     name: http

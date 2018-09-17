@@ -11,3 +11,5 @@ bash -x ${SCRIPT_PATH}/signed-cert.sh --service sidecar-injector-webhook-mesher-
  --secret sidecar-injector-webhook-mesher-certs --namespace "servicecomb"
 
 kubectl apply -f ${SCRIPT_PATH}/servicecomb.yaml
+
+kubectl apply -f ${SCRIPT_PATH}/apollo.yaml
