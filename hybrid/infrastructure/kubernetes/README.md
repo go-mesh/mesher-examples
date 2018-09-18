@@ -1,6 +1,6 @@
 hybrid
 -----
-   
+
 This is a sample demo to deploy microservices with ServiceComb
 
 ## Introduce
@@ -41,6 +41,30 @@ kubectl apply -f example.yaml
 # curl http://{consumer}:30180/consumer.php
 "Hello World!"
 ```
+
+## Configure mesher with Apollo ConfigCenter
+
+[Apollo](https://github.com/ctripcorp/apollo) is an open source configuration center. We implement mesher's open configuration source interface to read config items from Apollo. When installation is finished, the apollo sever should be up and running. Configure the apollo service with NodePort IP or LoadBalancer to make sure you can access the apollo website's port `8070`, login with username "apollo" and password "admin". The following is the apollo related configs in the injected mesher:
+
+```yaml
+config:
+  client:
+    type: apollo
+    serverUri: http://apollo.servicecomb:8080
+    refreshMode: 1
+    refreshInterval: 30
+    autodiscovery: false
+    serviceName: hybrid-example  # The project-id in apollo
+    env: DEV # The environment in apollo
+    cluster: default # The cluster in apollo
+    namespace: application # The namespace in apollo
+```
+
+So now we create a new apollo project with ID `hybrid-example:`
+
+![apollo-project](/hybrid/docs/apollo-create-project.png)
+
+Add some new configs and publish the project, to enable mesher's governance abilities like rate limiting, routing, etc. Please refer to the [example](https://github.com/asifdxtreme/chassis-apollo-example) for more details and have fun! 
 
 ## Clean up
 
