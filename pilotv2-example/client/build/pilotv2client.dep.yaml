@@ -34,8 +34,8 @@ spec:
               - key: dev
                 operator: Exists
       containers:
-      - image: go-chassis/consumer-mesher:latest
-        imagePullPolicy: IfNotPresent
+      - image: gomesh/mesher:latest
+        imagePullPolicy: Always
         name: consumer-mesher
         ports:
         - containerPort: 30101

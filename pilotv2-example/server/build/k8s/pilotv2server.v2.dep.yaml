@@ -23,8 +23,8 @@ spec:
         debug: "true"
     spec:
       containers:
-      - image: go-chassis/provider-mesher:latest
-        imagePullPolicy: IfNotPresent
+      - image: gomesh/mesher:latest
+        imagePullPolicy: Always
         name: provider-mesher
         ports:
         - containerPort: 30101
