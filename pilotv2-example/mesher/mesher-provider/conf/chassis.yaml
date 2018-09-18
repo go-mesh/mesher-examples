@@ -1,0 +1,14 @@
+---
+cse:
+  protocols:
+    http:
+      listenAddress: 127.0.0.1:30101
+  service:
+    registry:
+      type: pilotv2
+      address: grpc://istio-pilot.istio-system:15010 # uri of service center
+      # scope: full #set full to be able to discover other app's service
+      # watch: false # set if you want to watch instance change event
+      autoIPIndex: true # set to true if u want to resolve source IP to microservice
+      registrator:
+        disabled: true
