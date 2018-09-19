@@ -1,7 +1,11 @@
 hybrid
 -----
 
-This is a sample demo to deploy microservices with ServiceComb
+This demo shows how to deploy a microservices developed based on java chassis framework and another php service intagrate with Mesher,
+and how to use unified control plane to control services
+
+Use Apollo and ServiceComb service center as control plane.
+
 
 ## Introduce
 
