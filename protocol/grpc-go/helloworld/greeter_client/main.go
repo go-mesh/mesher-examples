@@ -27,7 +27,6 @@ import (
 	"google.golang.org/grpc"
 	pb "google.golang.org/grpc/examples/helloworld/helloworld"
 	"google.golang.org/grpc/metadata"
-	"net"
 )
 
 const (
@@ -38,10 +37,7 @@ const (
 func main() {
 	// Set up a connection to the server.
 	conn, err := grpc.Dial(address,
-		grpc.WithInsecure(),
-		grpc.WithDialer(func(addr string, time time.Duration) (net.Conn, error) {
-			return net.Dial("tcp", "127.0.0.1:40101")
-		}))
+		grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}

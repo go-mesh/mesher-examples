@@ -33,4 +33,6 @@ services:
       context: ./greeter_client
       dockerfile: Dockerfile
     image: client-grpc
+    environment:
+      - http_proxy=http://127.0.0.1:40101
     network_mode: "service:MesherConsumer"
