@@ -1,18 +1,18 @@
 version: '2'
 services:
   ServiceCenter:
-    image: servicecomb/service-center
+    image: servicecomb/service-center:1.0.0
     ports:
       - 30100:30100
   MesherProvider:
-    image: gochassis/mesher
+    image: gomesh/mesher
     environment:
       - CSE_REGISTRY_ADDR=http://ServiceCenter:30100 #https://cse.cn-north-1.myhwclouds.com:443
       - SERVICE_NAME=Server
       - VERSION=0.0.1
       - APP_ID=default
   MesherConsumer:
-    image: gochassis/mesher
+    image: gomesh/mesher
     environment:
       - CSE_REGISTRY_ADDR=http://ServiceCenter:30100 #https://cse.cn-north-1.myhwclouds.com:443
       - SERVICE_NAME=Client
